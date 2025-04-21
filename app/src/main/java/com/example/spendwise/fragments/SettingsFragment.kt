@@ -17,6 +17,7 @@ import com.example.spendwise.utils.NotificationManager
 import com.example.spendwise.utils.PreferencesManager
 import com.example.spendwise.utils.TransactionManager
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -95,6 +96,11 @@ class SettingsFragment(
             }
             pickBackupFile.launch(intent)
         }
+
+        // Set up currency button
+        binding.btnChangeCurrency.setOnClickListener {
+            showCurrencySelectionDialog()
+        }
     }
 
     private fun exportData(uri: Uri) {
@@ -120,6 +126,22 @@ class SettingsFragment(
         } catch (e: Exception) {
             Snackbar.make(binding.root, "Failed to import backup: ${e.message}", Snackbar.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showCurrencySelectionDialog() {
+        val currencies = resources.getStringArray(R.array.currencies)
+        val currentCurrency = preferencesManager.currency
+        val currentIndex = currencies.indexOfFirst { it.startsWith(currentCurrency) }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.currency)
+            .setSingleChoiceItems(currencies, currentIndex) { dialog, which ->
+                val selectedCurrency = currencies[which].substringBefore(" -")
+                preferencesManager.currency = selectedCurrency
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     override fun onDestroyView() {
