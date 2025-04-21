@@ -103,6 +103,10 @@ class BudgetManager(context: Context) {
                calendar.get(Calendar.YEAR) == currentYear
     }
 
+    fun clearBudgets() {
+        saveBudgets(emptyList())
+    }
+
     private fun saveBudgets(budgets: List<Budget>) {
         val json = gson.toJson(budgets)
         prefs.edit().putString(KEY_BUDGETS, json).apply()
