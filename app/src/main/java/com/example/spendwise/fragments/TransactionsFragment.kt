@@ -163,7 +163,8 @@ class TransactionsFragment : Fragment() {
                     title = title,
                     amount = amount!!,
                     category = category,
-                    type = type
+                    type = type,
+                    date = transaction.date // Preserve the original date
                 )
                 updateTransaction(updatedTransaction)
                 dialog.dismiss()

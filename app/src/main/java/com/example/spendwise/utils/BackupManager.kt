@@ -1,81 +1,83 @@
 package com.example.spendwise.utils
 
 import android.content.Context
-import android.os.Environment
+import android.util.Log
 import android.widget.Toast
 import com.example.spendwise.models.Budget
 import com.example.spendwise.models.Transaction
 import com.google.gson.Gson
-import java.io.File
-import java.io.FileWriter
-import java.io.IOException
-import java.text.SimpleDateFormat
+import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 import java.util.Date
-import java.util.Locale
 
 class BackupManager(private val context: Context) {
-    private val gson = Gson()
+    private val gson = GsonBuilder()
+        .registerTypeAdapter(Date::class.java, DateSerializer())
+        .create()
     private val transactionManager = TransactionManager(context)
     private val budgetManager = BudgetManager(context)
     private val preferencesManager = PreferencesManager(context)
 
-    fun exportData(): Boolean {
-        try {
-            // Create backup directory if it doesn't exist
-            val backupDir = File(context.getExternalFilesDir(null), "backups")
-            if (!backupDir.exists()) {
-                backupDir.mkdirs()
-            }
-
-            // Create backup file with timestamp
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val backupFile = File(backupDir, "spendwise_backup_$timestamp.json")
-
-            // Prepare data for backup
-            val backupData = BackupData(
-                transactions = transactionManager.getTransactions(),
-                budgets = budgetManager.getBudgets(),
-                currency = preferencesManager.currency
-            )
-
-            // Write data to file
-            FileWriter(backupFile).use { writer ->
-                writer.write(gson.toJson(backupData))
-            }
-
-            Toast.makeText(context, "Backup created successfully", Toast.LENGTH_SHORT).show()
-            return true
-        } catch (e: IOException) {
-            Toast.makeText(context, "Failed to create backup: ${e.message}", Toast.LENGTH_LONG).show()
-            return false
-        }
+    fun getBackupData(): String {
+        val backupData = BackupData(
+            transactions = transactionManager.getTransactions(),
+            budgets = budgetManager.getBudgets(),
+            currency = preferencesManager.currency
+        )
+        return gson.toJson(backupData)
     }
 
-    fun importData(backupFile: File): Boolean {
+    fun importData(json: String): Boolean {
         try {
-            // Read backup file
-            val json = backupFile.readText()
+            Log.d("BackupManager", "Starting import with JSON: $json")
+            
             val backupData = gson.fromJson(json, BackupData::class.java)
+            Log.d("BackupManager", "Parsed backup data: ${backupData.transactions.size} transactions, ${backupData.budgets.size} budgets")
 
-            // Restore data
-            backupData.transactions.forEach { transactionManager.saveTransaction(it) }
-            backupData.budgets.forEach { budgetManager.saveBudget(it) }
+            // Clear existing data
+            transactionManager.clearTransactions()
+            budgetManager.clearBudgets()
+            Log.d("BackupManager", "Cleared existing data")
+
+            // Restore transactions
+            backupData.transactions.forEach { transaction ->
+                try {
+                    val restoredTransaction = Transaction(
+                        id = transaction.id,
+                        title = transaction.title,
+                        amount = transaction.amount,
+                        category = transaction.category,
+                        type = transaction.type,
+                        date = transaction.date
+                    )
+                    transactionManager.saveTransaction(restoredTransaction)
+                    Log.d("BackupManager", "Restored transaction: ${restoredTransaction.title}")
+                } catch (e: Exception) {
+                    Log.e("BackupManager", "Error restoring transaction: ${e.message}")
+                    throw e
+                }
+            }
+
+            // Restore budgets
+            backupData.budgets.forEach { budget ->
+                try {
+                    budgetManager.saveBudget(budget)
+                    Log.d("BackupManager", "Restored budget: ${budget.category}")
+                } catch (e: Exception) {
+                    Log.e("BackupManager", "Error restoring budget: ${e.message}")
+                    throw e
+                }
+            }
+
+            // Restore currency
             preferencesManager.currency = backupData.currency
+            Log.d("BackupManager", "Restored currency: ${backupData.currency}")
 
-            Toast.makeText(context, "Data restored successfully", Toast.LENGTH_SHORT).show()
             return true
         } catch (e: Exception) {
+            Log.e("BackupManager", "Failed to restore backup: ${e.message}", e)
             Toast.makeText(context, "Failed to restore backup: ${e.message}", Toast.LENGTH_LONG).show()
             return false
-        }
-    }
-
-    fun getBackupFiles(): List<File> {
-        val backupDir = File(context.getExternalFilesDir(null), "backups")
-        return if (backupDir.exists()) {
-            backupDir.listFiles()?.filter { it.extension == "json" }?.sortedByDescending { it.lastModified() } ?: emptyList()
-        } else {
-            emptyList()
         }
     }
 

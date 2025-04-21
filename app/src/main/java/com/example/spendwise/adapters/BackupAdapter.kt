@@ -1,39 +1,19 @@
 package com.example.spendwise.adapters
 
+import android.net.Uri
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.spendwise.databinding.ItemBackupBinding
-import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class BackupAdapter(
-    private val onRestoreClick: (File) -> Unit
-) : ListAdapter<File, BackupAdapter.BackupViewHolder>(BackupDiffCallback()) {
-
-    inner class BackupViewHolder(private val binding: ItemBackupBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(file: File) {
-            binding.textFileName.text = file.name
-            binding.textFileSize.text = formatFileSize(file.length())
-            binding.textDate.text = formatDate(file.lastModified())
-            binding.buttonRestore.setOnClickListener {
-                onRestoreClick(file)
-            }
-        }
-
-        private fun formatFileSize(size: Long): String {
-            val kb = size / 1024.0
-            return String.format("%.2f KB", kb)
-        }
-
-        private fun formatDate(timestamp: Long): String {
-            return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                .format(java.util.Date(timestamp))
-        }
-    }
+    private val onRestoreClick: (Uri) -> Unit
+) : ListAdapter<Uri, BackupAdapter.BackupViewHolder>(BackupDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BackupViewHolder {
         val binding = ItemBackupBinding.inflate(
@@ -47,15 +27,34 @@ class BackupAdapter(
     override fun onBindViewHolder(holder: BackupViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
-}
 
-class BackupDiffCallback : DiffUtil.ItemCallback<File>() {
-    override fun areItemsTheSame(oldItem: File, newItem: File): Boolean {
-        return oldItem.absolutePath == newItem.absolutePath
+    inner class BackupViewHolder(
+        private val binding: ItemBackupBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        init {
+            binding.buttonRestore.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onRestoreClick(getItem(position))
+                }
+            }
+        }
+
+        fun bind(uri: Uri) {
+            binding.textFileName.text = uri.lastPathSegment ?: "Unknown file"
+            binding.textFileSize.text = "Size: Unknown" // We can't easily get file size from URI
+            binding.textDate.text = "Last modified: Unknown" // We can't easily get last modified from URI
+        }
     }
 
-    override fun areContentsTheSame(oldItem: File, newItem: File): Boolean {
-        return oldItem.lastModified() == newItem.lastModified() &&
-                oldItem.length() == newItem.length()
+    private class BackupDiffCallback : DiffUtil.ItemCallback<Uri>() {
+        override fun areItemsTheSame(oldItem: Uri, newItem: Uri): Boolean {
+            return oldItem == newItem
+        }
+
+        override fun areContentsTheSame(oldItem: Uri, newItem: Uri): Boolean {
+            return oldItem == newItem
+        }
     }
 } 
