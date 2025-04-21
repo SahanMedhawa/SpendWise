@@ -8,14 +8,26 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.Date
 
-class TransactionManager(context: Context) {
+class TransactionManager(
+    private val context: Context
+) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
+    private var budgetManager: BudgetManager? = null
+
+    fun setBudgetManager(budgetManager: BudgetManager) {
+        this.budgetManager = budgetManager
+    }
 
     fun saveTransaction(transaction: Transaction) {
         val transactions = getTransactions().toMutableList()
         transactions.add(0, transaction)
         saveTransactions(transactions)
+        
+        // Check budget alerts if this is an expense
+        if (transaction.type == TransactionType.EXPENSE) {
+            budgetManager?.checkBudgetAlerts(transaction.category)
+        }
     }
 
     fun getTransactions(): List<Transaction> {
@@ -28,6 +40,11 @@ class TransactionManager(context: Context) {
         val transactions = getTransactions().toMutableList()
         transactions.removeIf { it.id == transaction.id }
         saveTransactions(transactions)
+        
+        // Check budget alerts if this was an expense
+        if (transaction.type == TransactionType.EXPENSE) {
+            budgetManager?.checkBudgetAlerts(transaction.category)
+        }
     }
 
     fun updateTransaction(updatedTransaction: Transaction) {
@@ -36,6 +53,11 @@ class TransactionManager(context: Context) {
         if (index != -1) {
             transactions[index] = updatedTransaction
             saveTransactions(transactions)
+            
+            // Check budget alerts if this is an expense
+            if (updatedTransaction.type == TransactionType.EXPENSE) {
+                budgetManager?.checkBudgetAlerts(updatedTransaction.category)
+            }
         }
     }
 

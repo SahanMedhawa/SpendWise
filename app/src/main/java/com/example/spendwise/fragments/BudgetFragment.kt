@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.example.spendwise.R
 import com.example.spendwise.databinding.FragmentBudgetBinding
+import com.example.spendwise.databinding.DialogAddBudgetBinding
 import com.example.spendwise.models.Budget
 import com.example.spendwise.utils.BudgetManager
 import com.example.spendwise.utils.PreferencesManager
@@ -21,13 +22,15 @@ import android.widget.ArrayAdapter
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.appcompat.app.AlertDialog
+import java.util.*
 
-class BudgetFragment : Fragment() {
+class BudgetFragment(
+    private val transactionManager: TransactionManager,
+    private val preferencesManager: PreferencesManager
+) : Fragment() {
     private var _binding: FragmentBudgetBinding? = null
     private val binding get() = _binding!!
     private lateinit var budgetManager: BudgetManager
-    private lateinit var transactionManager: TransactionManager
-    private lateinit var preferencesManager: PreferencesManager
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -40,9 +43,7 @@ class BudgetFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        budgetManager = BudgetManager(requireContext())
-        transactionManager = TransactionManager(requireContext())
-        preferencesManager = PreferencesManager(requireContext())
+        budgetManager = BudgetManager(requireContext(), transactionManager)
         setupUI()
         loadBudgets()
     }
@@ -110,51 +111,25 @@ class BudgetFragment : Fragment() {
     }
 
     private fun showAddBudgetDialog() {
-        showBudgetDialog(null)
-    }
-
-    private fun showEditBudgetDialog(budget: Budget) {
-        showBudgetDialog(budget)
-    }
-
-    private fun showBudgetDialog(existingBudget: Budget?) {
+        val dialogBinding = DialogAddBudgetBinding.inflate(layoutInflater)
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle(if (existingBudget == null) R.string.add_budget else R.string.edit_budget)
-            .setView(R.layout.dialog_add_budget)
-            .setPositiveButton(R.string.save) { dialog, _ ->
-                val category = (dialog as AlertDialog).findViewById<AutoCompleteTextView>(R.id.etCategory)?.text.toString()
-                val amount = dialog.findViewById<TextInputEditText>(R.id.etAmount)?.text.toString().toDoubleOrNull() ?: 0.0
-
-                if (category.isNotEmpty() && amount > 0) {
-                    val budget = if (existingBudget == null) {
-                        Budget(category = category, limit = amount)
-                    } else {
-                        existingBudget.copy(category = category, limit = amount)
-                    }
-                    
-                    if (existingBudget == null) {
-                        if (budgetManager.saveBudget(budget)) {
-                            loadBudgets()
-                        }
-                    } else {
-                        budgetManager.updateBudget(budget)
-                        loadBudgets()
-                    }
+            .setTitle("Add Budget")
+            .setView(dialogBinding.root)
+            .setPositiveButton("Add") { _, _ ->
+                val category = dialogBinding.etCategory.text.toString()
+                val limit = dialogBinding.etAmount.text.toString().toDoubleOrNull() ?: 0.0
+                
+                val calendar = Calendar.getInstance()
+                val month = calendar.get(Calendar.MONTH)
+                val year = calendar.get(Calendar.YEAR)
+                
+                val budget = Budget(category, limit, month, year)
+                if (budgetManager.saveBudget(budget)) {
+                    loadBudgets()
                 }
-                dialog.dismiss()
             }
-            .setNegativeButton(R.string.cancel) { dialog, _ ->
-                dialog.dismiss()
-            }
+            .setNegativeButton("Cancel", null)
             .create()
-
-        dialog.show()
-
-        // Pre-fill the form if editing
-        if (existingBudget != null) {
-            dialog.findViewById<AutoCompleteTextView>(R.id.etCategory)?.setText(existingBudget.category)
-            dialog.findViewById<TextInputEditText>(R.id.etAmount)?.setText(existingBudget.limit.toString())
-        }
 
         // Setup category dropdown
         val categoryAdapter = ArrayAdapter(
@@ -162,7 +137,43 @@ class BudgetFragment : Fragment() {
             android.R.layout.simple_dropdown_item_1line,
             resources.getStringArray(R.array.budget_categories)
         )
-        dialog.findViewById<AutoCompleteTextView>(R.id.etCategory)?.setAdapter(categoryAdapter)
+        dialogBinding.etCategory.setAdapter(categoryAdapter)
+
+        dialog.show()
+    }
+
+    private fun showEditBudgetDialog(budget: Budget) {
+        val dialogBinding = DialogAddBudgetBinding.inflate(layoutInflater)
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Edit Budget")
+            .setView(dialogBinding.root)
+            .setPositiveButton("Save") { _, _ ->
+                val category = dialogBinding.etCategory.text.toString()
+                val limit = dialogBinding.etAmount.text.toString().toDoubleOrNull() ?: 0.0
+                
+                val updatedBudget = budget.copy(
+                    category = category,
+                    limit = limit
+                )
+                budgetManager.updateBudget(updatedBudget)
+                loadBudgets()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        // Pre-fill the form
+        dialogBinding.etCategory.setText(budget.category)
+        dialogBinding.etAmount.setText(budget.limit.toString())
+
+        // Setup category dropdown
+        val categoryAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_dropdown_item_1line,
+            resources.getStringArray(R.array.budget_categories)
+        )
+        dialogBinding.etCategory.setAdapter(categoryAdapter)
+
+        dialog.show()
     }
 
     private fun showDeleteConfirmation(budget: Budget) {

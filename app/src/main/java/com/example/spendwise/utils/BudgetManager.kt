@@ -8,12 +8,15 @@ import com.example.spendwise.models.TransactionType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.Calendar
+import java.util.Date
 
-class BudgetManager(context: Context) {
+class BudgetManager(
+    private val context: Context,
+    private val transactionManager: TransactionManager
+) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
-    private val transactionManager = TransactionManager(context)
-    private val context = context
+    private val notificationManager = NotificationManager(context)
 
     init {
         checkAndResetBudgets()
@@ -46,15 +49,17 @@ class BudgetManager(context: Context) {
         
         budgets.add(budget)
         saveBudgets(budgets)
+        checkBudgetAlerts(budget.category)
         return true
     }
 
-    fun updateBudget(budget: Budget) {
+    fun updateBudget(updatedBudget: Budget) {
         val budgets = getBudgets().toMutableList()
-        val existingIndex = budgets.indexOfFirst { it.category == budget.category }
-        if (existingIndex != -1) {
-            budgets[existingIndex] = budget
+        val index = budgets.indexOfFirst { it.category == updatedBudget.category }
+        if (index != -1) {
+            budgets[index] = updatedBudget
             saveBudgets(budgets)
+            checkBudgetAlerts(updatedBudget.category)
         }
     }
 
@@ -96,7 +101,7 @@ class BudgetManager(context: Context) {
             .sumOf { it.amount }
     }
 
-    private fun isInCurrentMonth(date: java.util.Date, currentMonth: Int, currentYear: Int): Boolean {
+    private fun isInCurrentMonth(date: Date, currentMonth: Int, currentYear: Int): Boolean {
         val calendar = Calendar.getInstance()
         calendar.time = date
         return calendar.get(Calendar.MONTH) == currentMonth && 
@@ -110,6 +115,50 @@ class BudgetManager(context: Context) {
     private fun saveBudgets(budgets: List<Budget>) {
         val json = gson.toJson(budgets)
         prefs.edit().putString(KEY_BUDGETS, json).apply()
+    }
+
+    fun checkBudgetAlerts(category: String? = null) {
+        val budgets = if (category != null) {
+            getBudgets().filter { it.category == category }
+        } else {
+            getBudgets()
+        }
+
+        budgets.forEach { budget ->
+            val transactions = transactionManager.getTransactions()
+                .filter { it.category == budget.category && it.type == TransactionType.EXPENSE }
+                .filter { isInCurrentMonth(it.date, Calendar.getInstance().get(Calendar.MONTH), Calendar.getInstance().get(Calendar.YEAR)) }
+
+            val totalSpent = transactions.sumOf { it.amount }
+            val percentage = (totalSpent / budget.limit) * 100
+
+            // Show alert if spending is above 80% of budget
+            if (percentage >= 80) {
+                notificationManager.showBudgetAlert(budget.category, totalSpent, budget.limit, percentage)
+            }
+        }
+    }
+
+    fun isInCurrentMonth(budget: Budget): Boolean {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+        return budget.month == currentMonth && budget.year == currentYear
+    }
+
+    fun getCurrentBudget(): Budget? {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+        return getBudgets().find { it.month == currentMonth && it.year == currentYear }
+    }
+
+    fun getBudgetProgress(): Float {
+        val currentBudget = getCurrentBudget() ?: return 0f
+        val totalSpent = transactionManager.getTransactions()
+            .filter { it.type == TransactionType.EXPENSE }
+            .sumOf { it.amount }
+        return (totalSpent.toFloat() / currentBudget.limit.toFloat()).coerceIn(0f, 1f)
     }
 
     companion object {

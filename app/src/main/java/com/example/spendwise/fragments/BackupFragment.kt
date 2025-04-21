@@ -14,9 +14,14 @@ import com.example.spendwise.R
 import com.example.spendwise.adapters.BackupAdapter
 import com.example.spendwise.databinding.FragmentBackupBinding
 import com.example.spendwise.utils.BackupManager
+import com.example.spendwise.utils.PreferencesManager
+import com.example.spendwise.utils.TransactionManager
 import com.google.android.material.snackbar.Snackbar
 
-class BackupFragment : Fragment() {
+class BackupFragment(
+    private val transactionManager: TransactionManager,
+    private val preferencesManager: PreferencesManager
+) : Fragment() {
     private var _binding: FragmentBackupBinding? = null
     private val binding get() = _binding!!
     private lateinit var backupManager: BackupManager
@@ -78,7 +83,7 @@ class BackupFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        backupManager = BackupManager(requireContext())
+        backupManager = BackupManager(requireContext(), transactionManager)
         setupRecyclerView()
         setupClickListeners()
     }

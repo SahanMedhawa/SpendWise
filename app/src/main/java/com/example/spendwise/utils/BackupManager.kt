@@ -8,15 +8,25 @@ import com.example.spendwise.models.Transaction
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import java.io.File
 import java.util.Date
 
-class BackupManager(private val context: Context) {
+class BackupManager(
+    private val context: Context,
+    private val transactionManager: TransactionManager
+) {
     private val gson = GsonBuilder()
         .registerTypeAdapter(Date::class.java, DateSerializer())
         .create()
-    private val transactionManager = TransactionManager(context)
-    private val budgetManager = BudgetManager(context)
+    private val budgetManager = BudgetManager(context, transactionManager)
     private val preferencesManager = PreferencesManager(context)
+    private val backupDir = File(context.getExternalFilesDir(null), "backups")
+
+    init {
+        if (!backupDir.exists()) {
+            backupDir.mkdirs()
+        }
+    }
 
     fun getBackupData(): String {
         val backupData = BackupData(

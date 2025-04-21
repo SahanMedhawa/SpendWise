@@ -17,13 +17,16 @@ import com.example.spendwise.databinding.DialogAddTransactionBinding
 import com.example.spendwise.databinding.FragmentTransactionsBinding
 import com.example.spendwise.models.Transaction
 import com.example.spendwise.models.TransactionType
+import com.example.spendwise.utils.PreferencesManager
 import com.example.spendwise.utils.TransactionManager
 import java.util.Date
 
-class TransactionsFragment : Fragment() {
+class TransactionsFragment(
+    private val transactionManager: TransactionManager,
+    private val preferencesManager: PreferencesManager
+) : Fragment() {
     private var _binding: FragmentTransactionsBinding? = null
     private val binding get() = _binding!!
-    private lateinit var transactionManager: TransactionManager
     private val transactions = mutableListOf<Transaction>()
 
     override fun onCreateView(
@@ -32,7 +35,6 @@ class TransactionsFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentTransactionsBinding.inflate(inflater, container, false)
-        transactionManager = TransactionManager(requireContext())
         return binding.root
     }
 

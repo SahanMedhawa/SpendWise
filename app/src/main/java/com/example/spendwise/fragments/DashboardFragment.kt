@@ -11,11 +11,12 @@ import com.example.spendwise.models.TransactionType
 import com.example.spendwise.utils.PreferencesManager
 import com.example.spendwise.utils.TransactionManager
 
-class DashboardFragment : Fragment() {
+class DashboardFragment(
+    private val transactionManager: TransactionManager,
+    private val preferencesManager: PreferencesManager
+) : Fragment() {
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
-    private lateinit var transactionManager: TransactionManager
-    private lateinit var preferencesManager: PreferencesManager
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -23,8 +24,6 @@ class DashboardFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
-        transactionManager = TransactionManager(requireContext())
-        preferencesManager = PreferencesManager(requireContext())
         return binding.root
     }
 
