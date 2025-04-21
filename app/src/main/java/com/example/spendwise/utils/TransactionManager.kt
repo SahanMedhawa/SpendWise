@@ -26,13 +26,13 @@ class TransactionManager(context: Context) {
 
     fun deleteTransaction(transaction: Transaction) {
         val transactions = getTransactions().toMutableList()
-        transactions.remove(transaction)
+        transactions.removeIf { it.id == transaction.id }
         saveTransactions(transactions)
     }
 
     fun updateTransaction(updatedTransaction: Transaction) {
         val transactions = getTransactions().toMutableList()
-        val index = transactions.indexOfFirst { it == updatedTransaction }
+        val index = transactions.indexOfFirst { it.id == updatedTransaction.id }
         if (index != -1) {
             transactions[index] = updatedTransaction
             saveTransactions(transactions)
