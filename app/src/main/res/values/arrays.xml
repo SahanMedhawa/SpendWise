@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="categories">
+        <item>Food</item>
+        <item>Transport</item>
+        <item>Entertainment</item>
+        <item>Utilities</item>
+        <item>Shopping</item>
+        <item>Health</item>
+        <item>Education</item>
+        <item>Other</item>
+    </string-array>
+
+    <string-array name="currencies">
+        <item>₹ - Indian Rupee</item>
+        <item>රු - Sri Lankan Rupee</item>
+        <item>$ - US Dollar</item>
+        <item>€ - Euro</item>
+        <item>£ - British Pound</item>
+        <item>¥ - Japanese Yen</item>
+    </string-array>
+
+    <string-array name="income_categories">
+        <item>Salary</item>
+        <item>Business</item>
+        <item>Investment</item>
+        <item>Pension</item>
+        <item>Other</item>
+    </string-array>
+
+    <string-array name="budget_categories">
+        <item>Food</item>
+        <item>Transport</item>
+        <item>Entertainment</item>
+        <item>Utilities</item>
+        <item>Shopping</item>
+        <item>Health</item>
+        <item>Education</item>
+        <item>Other</item>
+    </string-array>
+
+    <string-array name="budget_periods">
+        <item>Monthly</item>
+    </string-array>
+</resources> 

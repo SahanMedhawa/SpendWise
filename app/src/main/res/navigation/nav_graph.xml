@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/passcodeFragment">
+
+    <fragment
+        android:id="@+id/passcodeFragment"
+        android:name="com.example.spendwise.fragments.PasscodeFragment"
+        android:label="Passcode">
+        <action
+            android:id="@+id/action_passcodeFragment_to_mainActivity"
+            app:destination="@id/mainActivity" />
+    </fragment>
+
+    <activity
+        android:id="@+id/mainActivity"
+        android:name="com.example.spendwise.MainActivity"
+        android:label="SpendWise">
+        <action
+            android:id="@+id/action_mainActivity_to_passcodeFragment"
+            app:destination="@id/passcodeFragment" />
+    </activity>
+
+    <fragment
+        android:id="@+id/dashboardFragment"
+        android:name="com.example.spendwise.fragments.DashboardFragment"
+        android:label="Dashboard" />
+
+    <fragment
+        android:id="@+id/transactionsFragment"
+        android:name="com.example.spendwise.fragments.TransactionsFragment"
+        android:label="Transactions" />
+
+    <fragment
+        android:id="@+id/budgetFragment"
+        android:name="com.example.spendwise.fragments.BudgetFragment"
+        android:label="Budget" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.example.spendwise.fragments.SettingsFragment"
+        android:label="Settings" />
+
+</navigation> 
