@@ -15,4 +15,9 @@
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
     </style>
+
+    <style name="Theme.SpendWise.NoActionBar" parent="Theme.SpendWise">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
 </resources> 

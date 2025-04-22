@@ -143,8 +143,16 @@ class TransactionsFragment(
         } else {
             R.array.categories
         }
-        setupCategoryDropdown(dialogBinding, categoryArrayId)
-        dialogBinding.spinnerCategory.setText(transaction.category)
+        
+        // Setup category dropdown
+        val categories = resources.getStringArray(categoryArrayId)
+        val categoryAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_dropdown_item_1line,
+            categories
+        )
+        dialogBinding.spinnerCategory.setAdapter(categoryAdapter)
+        dialogBinding.spinnerCategory.setText(transaction.category, false)
 
         // Handle radio button changes
         dialogBinding.typeGroup.setOnCheckedChangeListener { _, checkedId ->
