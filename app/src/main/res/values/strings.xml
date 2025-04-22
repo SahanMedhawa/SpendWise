@@ -16,6 +16,11 @@
     <string name="income">Income</string>
     <string name="expenses">Expenses</string>
     <string name="savings">Savings</string>
+    <string name="expense_distribution">Expense Distribution</string>
+    <string name="budget_distribution">Budget Distribution</string>
+    <string name="expenses_label">Expenses</string>
+    <string name="remaining_label">Remaining</string>
+    <string name="category_wise_spending">Category-wise Spending</string>
     
     <!-- Transactions -->
     <string name="transactions">Transactions</string>
