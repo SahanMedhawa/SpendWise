@@ -204,15 +204,15 @@ class TransactionsFragment(
 
     private fun validateInput(title: String, amount: Double?, category: String): Boolean {
         if (title.isBlank()) {
-            Toast.makeText(context, "Please enter a title", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.validate_title, Toast.LENGTH_SHORT).show()
             return false
         }
         if (amount == null || amount <= 0) {
-            Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.validate_amount, Toast.LENGTH_SHORT).show()
             return false
         }
         if (category.isBlank()) {
-            Toast.makeText(context, "Please select a category", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.validate_category, Toast.LENGTH_SHORT).show()
             return false
         }
         return true

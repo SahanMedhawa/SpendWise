@@ -65,6 +65,7 @@ class TransactionManager(
         saveTransactions(emptyList())
     }
 
+    //saving transactions to shared preferences
     private fun saveTransactions(transactions: List<Transaction>) {
         val json = gson.toJson(transactions)
         prefs.edit().putString(KEY_TRANSACTIONS, json).apply()

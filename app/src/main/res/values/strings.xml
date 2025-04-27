@@ -84,4 +84,9 @@
     <string name="no_database_found">No database found to backup</string>
     <string name="next">Next</string>
     <string name="skip">Skip</string>
+
+    <string name="validate_title">Please enter a title</string>
+    <string name="validate_amount">Please enter a valid amount</string>
+    <string name="validate_category">Please select a category</string>
+
 </resources>
