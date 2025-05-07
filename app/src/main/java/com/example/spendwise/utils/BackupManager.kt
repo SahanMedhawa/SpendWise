@@ -1,99 +1,76 @@
 package com.example.spendwise.utils
 
 import android.content.Context
-import android.util.Log
-import android.widget.Toast
+import android.os.Parcelable
 import com.example.spendwise.models.Budget
 import com.example.spendwise.models.Transaction
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 import java.io.File
-import java.util.Date
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
+@Parcelize
 class BackupManager(
-    private val context: Context,
-    private val transactionManager: TransactionManager
-) {
-    private val gson = GsonBuilder()
-        .registerTypeAdapter(Date::class.java, DateSerializer())
-        .create()
-    private val budgetManager = BudgetManager(context, transactionManager)
-    private val preferencesManager = PreferencesManager(context)
-    private val backupDir = File(context.getExternalFilesDir(null), "backups")
+    private val context: @RawValue Context,
+    private val transactionManager: @RawValue TransactionManager,
+    private val budgetManager: @RawValue BudgetManager,
+    private val preferencesManager: @RawValue PreferencesManager
+) : Parcelable {
 
-    init {
-        if (!backupDir.exists()) {
-            backupDir.mkdirs()
+    suspend fun createBackup(): File {
+        val backupFile = File(context.filesDir, "backup.zip")
+        ZipOutputStream(backupFile.outputStream()).use { zip ->
+            // Backup transactions
+            val transactions = transactionManager.getAllTransactions().first()
+            zip.putNextEntry(ZipEntry("transactions.json"))
+            zip.write(transactions.toString().toByteArray())
+            zip.closeEntry()
+
+            // Backup budgets
+            val budgets = budgetManager.getAllBudgets().first()
+            zip.putNextEntry(ZipEntry("budgets.json"))
+            zip.write(budgets.toString().toByteArray())
+            zip.closeEntry()
+
+            // Backup preferences
+            zip.putNextEntry(ZipEntry("preferences.json"))
+            zip.write("""
+                {
+                    "currency": "${preferencesManager.getCurrency()}",
+                    "theme": "${preferencesManager.getTheme()}",
+                    "passcode": "${preferencesManager.getPasscode()}",
+                    "passcode_enabled": ${preferencesManager.isPasscodeEnabled()}
+                }
+            """.trimIndent().toByteArray())
+            zip.closeEntry()
+        }
+        return backupFile
+    }
+
+    suspend fun restoreBackup(backupFile: File) {
+        ZipInputStream(backupFile.inputStream()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                when (entry.name) {
+                    "transactions.json" -> {
+                        val transactions = zip.readBytes().toString(Charsets.UTF_8)
+                        // Parse and restore transactions
+                    }
+                    "budgets.json" -> {
+                        val budgets = zip.readBytes().toString(Charsets.UTF_8)
+                        // Parse and restore budgets
+                    }
+                    "preferences.json" -> {
+                        val preferences = zip.readBytes().toString(Charsets.UTF_8)
+                        // Parse and restore preferences
+                    }
+                }
+                entry = zip.nextEntry
+            }
         }
     }
-
-    fun getBackupData(): String {
-        val backupData = BackupData(
-            transactions = transactionManager.getTransactions(),
-            budgets = budgetManager.getBudgets(),
-            currency = preferencesManager.currency
-        )
-        return gson.toJson(backupData)
-    }
-
-    fun importData(json: String): Boolean {
-        try {
-            Log.d("BackupManager", "Starting import with JSON: $json")
-            
-            val backupData = gson.fromJson(json, BackupData::class.java)
-            Log.d("BackupManager", "Parsed backup data: ${backupData.transactions.size} transactions, ${backupData.budgets.size} budgets")
-
-            // Clear existing data
-            transactionManager.clearTransactions()
-            budgetManager.clearBudgets()
-            Log.d("BackupManager", "Cleared existing data")
-
-            // Restore transactions
-            backupData.transactions.forEach { transaction ->
-                try {
-                    val restoredTransaction = Transaction(
-                        id = transaction.id,
-                        title = transaction.title,
-                        amount = transaction.amount,
-                        category = transaction.category,
-                        type = transaction.type,
-                        date = transaction.date
-                    )
-                    transactionManager.saveTransaction(restoredTransaction)
-                    Log.d("BackupManager", "Restored transaction: ${restoredTransaction.title}")
-                } catch (e: Exception) {
-                    Log.e("BackupManager", "Error restoring transaction: ${e.message}")
-                    throw e
-                }
-            }
-
-            // Restore budgets
-            backupData.budgets.forEach { budget ->
-                try {
-                    budgetManager.saveBudget(budget)
-                    Log.d("BackupManager", "Restored budget: ${budget.category}")
-                } catch (e: Exception) {
-                    Log.e("BackupManager", "Error restoring budget: ${e.message}")
-                    throw e
-                }
-            }
-
-            // Restore currency
-            preferencesManager.currency = backupData.currency
-            Log.d("BackupManager", "Restored currency: ${backupData.currency}")
-
-            return true
-        } catch (e: Exception) {
-            Log.e("BackupManager", "Failed to restore backup: ${e.message}", e)
-            Toast.makeText(context, "Failed to restore backup: ${e.message}", Toast.LENGTH_LONG).show()
-            return false
-        }
-    }
-
-    data class BackupData(
-        val transactions: List<Transaction>,
-        val budgets: List<Budget>,
-        val currency: String
-    )
 } 

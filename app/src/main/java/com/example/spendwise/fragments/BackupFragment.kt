@@ -1,74 +1,27 @@
 package com.example.spendwise.fragments
 
-import android.app.Activity
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.lifecycle.lifecycleScope
 import com.example.spendwise.R
-import com.example.spendwise.adapters.BackupAdapter
 import com.example.spendwise.databinding.FragmentBackupBinding
 import com.example.spendwise.utils.BackupManager
-import com.example.spendwise.utils.PreferencesManager
-import com.example.spendwise.utils.TransactionManager
-import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.launch
+import java.io.File
 
-class BackupFragment(
-    private val transactionManager: TransactionManager,
-    private val preferencesManager: PreferencesManager
-) : Fragment() {
+class BackupFragment : Fragment() {
     private var _binding: FragmentBackupBinding? = null
     private val binding get() = _binding!!
     private lateinit var backupManager: BackupManager
-    private lateinit var backupAdapter: BackupAdapter
 
-    private val createBackupFile = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        uri?.let { 
-            try {
-                requireContext().contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    val backupData = backupManager.getBackupData()
-                    outputStream.write(backupData.toByteArray())
-                    showMessage(getString(R.string.backup_created_successfully))
-                }
-            } catch (e: Exception) {
-                showMessage(getString(R.string.backup_failed, e.message))
-            }
-        }
-    }
-
-    private val pickBackupFile = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { uri ->
-                try {
-                    requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val backupData = inputStream.bufferedReader().use { it.readText() }
-                        if (backupManager.importData(backupData)) {
-                            showMessage(getString(R.string.backup_restored_successfully))
-                            // Refresh all fragments
-                            parentFragmentManager.fragments.forEach { fragment ->
-                                when (fragment) {
-                                    is DashboardFragment -> fragment.onResume()
-                                    is TransactionsFragment -> fragment.onResume()
-                                    is BudgetFragment -> fragment.onResume()
-                                }
-                            }
-                        } else {
-                            showMessage(getString(R.string.restore_failed))
-                        }
-                    }
-                } catch (e: Exception) {
-                    showMessage(getString(R.string.restore_failed, e.message))
-                }
-            }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        arguments?.let {
+            backupManager = it.getParcelable(ARG_BACKUP_MANAGER)!!
         }
     }
 
@@ -83,60 +36,47 @@ class BackupFragment(
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        backupManager = BackupManager(requireContext(), transactionManager)
-        setupRecyclerView()
-        setupClickListeners()
+        setupViews()
     }
 
-    private fun setupRecyclerView() {
-        backupAdapter = BackupAdapter { uri ->
-            try {
-                requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
-                    val backupData = inputStream.bufferedReader().use { it.readText() }
-                    if (backupManager.importData(backupData)) {
-                        showMessage(getString(R.string.backup_restored_successfully))
-                        // Refresh all fragments
-                        parentFragmentManager.fragments.forEach { fragment ->
-                            when (fragment) {
-                                is DashboardFragment -> fragment.onResume()
-                                is TransactionsFragment -> fragment.onResume()
-                                is BudgetFragment -> fragment.onResume()
-                            }
-                        }
-                    } else {
-                        showMessage(getString(R.string.restore_failed))
-                    }
+    private fun setupViews() {
+        binding.btnExport.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    val backupFile = File(requireContext().filesDir, "backup.json")
+                    backupManager.createBackup()
+                    Toast.makeText(context, "Backup created successfully", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Failed to create backup: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
-                showMessage(getString(R.string.restore_failed, e.message))
             }
         }
-        binding.recyclerViewBackups.apply {
-            layoutManager = LinearLayoutManager(context)
-            adapter = backupAdapter
-        }
-    }
 
-    private fun setupClickListeners() {
-        binding.fabCreateBackup.setOnClickListener {
-            createBackupFile.launch("spendwise_backup_${System.currentTimeMillis()}.json")
-        }
-
-        binding.fabRestoreBackup.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "application/json"
+        binding.btnImport.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    val backupFile = File(requireContext().filesDir, "backup.json")
+                    backupManager.restoreBackup(backupFile)
+                    Toast.makeText(context, "Backup restored successfully", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Failed to restore backup: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
-            pickBackupFile.launch(intent)
         }
-    }
-
-    private fun showMessage(message: String) {
-        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        private const val ARG_BACKUP_MANAGER = "backup_manager"
+
+        fun newInstance(backupManager: BackupManager) = BackupFragment().apply {
+            arguments = Bundle().apply {
+                putParcelable(ARG_BACKUP_MANAGER, backupManager)
+            }
+        }
     }
 } 

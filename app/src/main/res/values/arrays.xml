@@ -28,6 +28,17 @@
         <item>Other</item>
     </string-array>
 
+    <string-array name="expense_categories">
+        <item>Food</item>
+        <item>Transport</item>
+        <item>Entertainment</item>
+        <item>Utilities</item>
+        <item>Shopping</item>
+        <item>Health</item>
+        <item>Education</item>
+        <item>Other</item>
+    </string-array>
+
     <string-array name="budget_categories">
         <item>Food</item>
         <item>Transport</item>

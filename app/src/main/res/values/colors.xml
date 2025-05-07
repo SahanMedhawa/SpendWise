@@ -1,41 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-
-    <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
-
-
-<!--    Primary-->
-    <color name="background">#F5F5F5</color>
-    <color name="card_background">#FFFFFF</color>
-
-
-<!--    Secondary-->
+    <!-- Primary Colors (60%) -->
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
-    <color name="savings_blue">#2196F3</color>
     <color name="primary_light">#BBDEFB</color>
-
-
-<!--    Accent-->
+    
+    <!-- Secondary Colors (30%) -->
+    <color name="secondary">#FFC107</color>
+    <color name="secondary_dark">#FFA000</color>
+    <color name="secondary_light">#FFECB3</color>
+    
+    <!-- Accent Colors (10%) -->
     <color name="accent">#FF4081</color>
-
-
-    <color name="income_green">#4CAF50</color>
-    <color name="expense_red">#F44336</color>
-
-
-
-
-
-
-<!--    Other-->
-    <color name="primary_text">#212121</color>
-    <color name="secondary_text">#757575</color>
-    <color name="icons">#FFFFFF</color>
-    <color name="divider">#BDBDBD</color>
-    <color name="error">#F44336</color>
+    <color name="accent_dark">#F50057</color>
+    <color name="accent_light">#F8BBD0</color>
+    
+    <!-- Neutral Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="gray_light">#F5F5F5</color>
+    <color name="gray">#9E9E9E</color>
+    <color name="gray_dark">#616161</color>
+    
+    <!-- Status Colors -->
     <color name="success">#4CAF50</color>
-    <color name="warning">#FFC107</color>
+    <color name="warning">#FF9800</color>
+    <color name="error">#F44336</color>
+    <color name="info">#2196F3</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#BDBDBD</color>
+    <color name="primary_text">@color/text_primary</color>
+    <color name="secondary_text">@color/text_secondary</color>
+    
+    <!-- Background Colors -->
+    <color name="background">#FFFFFF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="divider">#BDBDBD</color>
+    
+    <!-- Chart Colors -->
+    <color name="chart_income">#4CAF50</color>
+    <color name="chart_expense">#F44336</color>
+    <color name="chart_budget">#2196F3</color>
+    <color name="chart_remaining">#9E9E9E</color>
+    
+    <!-- Transaction Colors -->
+    <color name="income_green">@color/chart_income</color>
+    <color name="expense_red">@color/chart_expense</color>
 </resources>

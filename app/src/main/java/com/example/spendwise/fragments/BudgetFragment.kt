@@ -1,36 +1,49 @@
 package com.example.spendwise.fragments
 
 import android.os.Bundle
+import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.spendwise.R
-import com.example.spendwise.databinding.FragmentBudgetBinding
+import com.example.spendwise.adapters.BudgetAdapter
 import com.example.spendwise.databinding.DialogAddBudgetBinding
+import com.example.spendwise.databinding.FragmentBudgetBinding
 import com.example.spendwise.models.Budget
 import com.example.spendwise.utils.BudgetManager
-import com.example.spendwise.utils.PreferencesManager
-import com.example.spendwise.utils.TransactionManager
-import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.AutoCompleteTextView
-import android.widget.ArrayAdapter
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.progressindicator.LinearProgressIndicator
-import androidx.appcompat.app.AlertDialog
-import java.util.*
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 
-class BudgetFragment(
-    private val transactionManager: TransactionManager,
-    private val preferencesManager: PreferencesManager
-) : Fragment() {
+@Parcelize
+class BudgetFragment : Fragment(), Parcelable {
+
+    @IgnoredOnParcel
     private var _binding: FragmentBudgetBinding? = null
+    
+    @IgnoredOnParcel
     private val binding get() = _binding!!
+    
+    @IgnoredOnParcel
     private lateinit var budgetManager: BudgetManager
+    
+    @IgnoredOnParcel
+    private lateinit var budgetAdapter: BudgetAdapter
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        arguments?.let {
+            budgetManager = it.getParcelable(ARG_BUDGET_MANAGER)!!
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -43,156 +56,142 @@ class BudgetFragment(
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        budgetManager = BudgetManager(requireContext(), transactionManager)
-        setupUI()
-        loadBudgets()
+        setupViews()
+        observeBudgets()
     }
 
-    override fun onResume() {
-        super.onResume()
-        loadBudgets()
-    }
+    private fun setupViews() {
+        budgetAdapter = BudgetAdapter(
+            onItemClick = { budget -> showEditBudgetDialog(budget) },
+            onDeleteClick = { budget -> showDeleteConfirmationDialog(budget) }
+        )
+        binding.recyclerViewBudgets.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = budgetAdapter
+        }
 
-    private fun setupUI() {
         binding.fabAddBudget.setOnClickListener {
             showAddBudgetDialog()
         }
     }
 
-    private fun loadBudgets() {
-        val budgets = budgetManager.getBudgets()
-        binding.linearLayout.removeAllViews()
-
-        budgets.forEach { budget ->
-            val cardView = createBudgetCard(budget)
-            binding.linearLayout.addView(cardView)
-        }
-    }
-
-    private fun createBudgetCard(budget: Budget): MaterialCardView {
-        val cardView = MaterialCardView(requireContext()).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 16
+    private fun observeBudgets() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            budgetManager.getAllBudgets().collectLatest { budgets ->
+                budgetAdapter.submitList(budgets)
+                binding.emptyStateLayout.visibility = if (budgets.isEmpty()) View.VISIBLE else View.GONE
             }
-            cardElevation = 2f
-            radius = 8f
         }
-
-        val inflater = LayoutInflater.from(requireContext())
-        val cardContent = inflater.inflate(R.layout.item_budget, cardView, false)
-
-        cardContent.findViewById<TextView>(R.id.tvCategory).text = budget.category
-        cardContent.findViewById<TextView>(R.id.tvAmount).text = 
-            "${String.format("%.2f", budget.limit)} ${preferencesManager.currency}"
-        cardContent.findViewById<TextView>(R.id.tvPeriod).text = "Monthly" // Always show Monthly
-
-        // Setup progress bar
-        val progressBar = cardContent.findViewById<LinearProgressIndicator>(R.id.progressBar)
-        val progressText = cardContent.findViewById<TextView>(R.id.tvProgress)
-        val percentage = budget.percentage
-        progressBar.progress = percentage
-        progressText.text = "${budget.currentSpending} ${preferencesManager.currency} / ${budget.limit} ${preferencesManager.currency} ($percentage%)"
-
-        // Setup edit button
-        cardContent.findViewById<View>(R.id.btnEdit).setOnClickListener {
-            showEditBudgetDialog(budget)
-        }
-
-        // Setup delete button
-        cardContent.findViewById<View>(R.id.btnDelete).setOnClickListener {
-            showDeleteConfirmation(budget)
-        }
-
-        cardView.addView(cardContent)
-        return cardView
     }
 
     private fun showAddBudgetDialog() {
         val dialogBinding = DialogAddBudgetBinding.inflate(layoutInflater)
+        
+        // Setup category spinner
+        val categories = resources.getStringArray(R.array.categories)
+        dialogBinding.spinnerCategory.setAdapter(ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, categories))
+
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Add Budget")
+            .setTitle(R.string.add_budget)
             .setView(dialogBinding.root)
-            .setPositiveButton("Add") { _, _ ->
-                val category = dialogBinding.etCategory.text.toString()
-                val limit = dialogBinding.etAmount.text.toString().toDoubleOrNull() ?: 0.0
-                
-                val calendar = Calendar.getInstance()
-                val month = calendar.get(Calendar.MONTH)
-                val year = calendar.get(Calendar.YEAR)
-                
-                val budget = Budget(category, limit, month, year)
-                if (budgetManager.saveBudget(budget)) {
-                    loadBudgets()
-                }
-            }
-            .setNegativeButton("Cancel", null)
+            .setPositiveButton(R.string.add, null)
+            .setNegativeButton(R.string.cancel, null)
             .create()
 
-        // Setup category dropdown
-        val categoryAdapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_dropdown_item_1line,
-            resources.getStringArray(R.array.budget_categories)
-        )
-        dialogBinding.etCategory.setAdapter(categoryAdapter)
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val amount = dialogBinding.etAmount.text.toString().toDoubleOrNull()
+                val category = dialogBinding.spinnerCategory.text.toString()
+
+                if (amount != null && category.isNotEmpty()) {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        budgetManager.addBudget(
+                            Budget(
+                                category = category,
+                                amount = amount,
+                                period = "Monthly",
+                                month = java.time.LocalDate.now().monthValue,
+                                year = java.time.LocalDate.now().year
+                            )
+                        )
+                        dialog.dismiss()
+                    }
+                } else {
+                    Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         dialog.show()
     }
 
     private fun showEditBudgetDialog(budget: Budget) {
         val dialogBinding = DialogAddBudgetBinding.inflate(layoutInflater)
+        
+        // Setup category spinner
+        val categories = resources.getStringArray(R.array.categories)
+        dialogBinding.spinnerCategory.setAdapter(ArrayAdapter(requireContext(), android.R.layout.simple_dropdown_item_1line, categories))
+
+        // Set initial values
+        dialogBinding.etAmount.setText(budget.amount.toString())
+        dialogBinding.spinnerCategory.setText(budget.category)
+
         val dialog = MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Edit Budget")
+            .setTitle(R.string.edit_budget)
             .setView(dialogBinding.root)
-            .setPositiveButton("Save") { _, _ ->
-                val category = dialogBinding.etCategory.text.toString()
-                val limit = dialogBinding.etAmount.text.toString().toDoubleOrNull() ?: 0.0
-                
-                val updatedBudget = budget.copy(
-                    category = category,
-                    limit = limit
-                )
-                budgetManager.updateBudget(updatedBudget)
-                loadBudgets()
-            }
-            .setNegativeButton("Cancel", null)
+            .setPositiveButton(R.string.save, null)
+            .setNegativeButton(R.string.cancel, null)
             .create()
 
-        // Pre-fill the form
-        dialogBinding.etCategory.setText(budget.category)
-        dialogBinding.etAmount.setText(budget.limit.toString())
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val amount = dialogBinding.etAmount.text.toString().toDoubleOrNull()
+                val category = dialogBinding.spinnerCategory.text.toString()
 
-        // Setup category dropdown
-        val categoryAdapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_dropdown_item_1line,
-            resources.getStringArray(R.array.budget_categories)
-        )
-        dialogBinding.etCategory.setAdapter(categoryAdapter)
+                if (amount != null && category.isNotEmpty()) {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        budgetManager.updateBudget(
+                            budget.copy(
+                                category = category,
+                                amount = amount
+                            )
+                        )
+                        dialog.dismiss()
+                    }
+                } else {
+                    Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         dialog.show()
     }
 
-    private fun showDeleteConfirmation(budget: Budget) {
+    private fun showDeleteConfirmationDialog(budget: Budget) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.delete_budget)
             .setMessage(R.string.delete_budget_confirmation)
-            .setPositiveButton(R.string.delete) { dialog, _ ->
-                budgetManager.deleteBudget(budget)
-                loadBudgets()
-                dialog.dismiss()
+            .setPositiveButton(R.string.delete) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    budgetManager.deleteBudget(budget)
+                }
             }
-            .setNegativeButton(R.string.cancel) { dialog, _ ->
-                dialog.dismiss()
-            }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        private const val ARG_BUDGET_MANAGER = "budget_manager"
+
+        fun newInstance(budgetManager: BudgetManager) = BudgetFragment().apply {
+            arguments = Bundle().apply {
+                putParcelable(ARG_BUDGET_MANAGER, budgetManager as Parcelable)
+            }
+        }
     }
 } 

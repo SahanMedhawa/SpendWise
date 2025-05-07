@@ -7,14 +7,20 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.preference.PreferenceManager
 import com.example.spendwise.MainActivity
 import com.example.spendwise.R
+import com.example.spendwise.data.AppDatabase
 import com.example.spendwise.workers.DailyReminderWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class NotificationManager(private val context: Context) {
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    private val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+    private val database = AppDatabase.getDatabase(context)
+    private val settingsDao = database.settingsDao()
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private val channelId = "spendwise_channel"
     private val dailyReminderId = 1
     private val budgetAlertId = 2
@@ -35,58 +41,64 @@ class NotificationManager(private val context: Context) {
         }
     }
 
-    fun showBudgetAlert(category: String, spent: Double, budget: Double, percentage: Double) {
-        if (!areNotificationsEnabled() || !areBudgetAlertsEnabled()) return
+    fun showBudgetAlert(budgetName: String, category: String, remaining: Double) {
+        coroutineScope.launch {
+            val notificationsEnabled = settingsDao.getSetting("notifications_enabled")?.value?.toBoolean() ?: true
+            val budgetAlertsEnabled = settingsDao.getSetting("budget_alerts_enabled")?.value?.toBoolean() ?: true
 
-        val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
+            if (notificationsEnabled && budgetAlertsEnabled) {
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE
+                )
 
-        val remaining = budget - spent
-        val message = when {
-            percentage >= 100 -> "⚠️ Budget Exceeded! You've spent $spent of $budget in $category"
-            percentage >= 90 -> "⚠️ Budget Warning! You've spent $spent of $budget in $category. Only $remaining left!"
-            percentage >= 75 -> "⚠️ Budget Alert! You've spent $spent of $budget in $category. $remaining remaining."
-            else -> "Budget Update: You've spent $spent of $budget in $category. $remaining remaining."
+                val notification = NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle("Budget Alert")
+                    .setContentText("$budgetName ($category) is running low. Remaining: $remaining")
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .build()
+
+                notificationManager.notify(budgetAlertId, notification)
+            }
         }
-
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Budget Alert: $category")
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        notificationManager.notify(budgetAlertId, notification)
     }
 
     fun showDailyReminder() {
-        if (!areNotificationsEnabled() || !areExpenseRemindersEnabled()) return
+        coroutineScope.launch {
+            val notificationsEnabled = settingsDao.getSetting("notifications_enabled")?.value?.toBoolean() ?: true
+            val expenseRemindersEnabled = settingsDao.getSetting("expense_reminders_enabled")?.value?.toBoolean() ?: true
 
-        val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE
-        )
+            if (notificationsEnabled && expenseRemindersEnabled) {
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE
+                )
 
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Daily Expense Reminder")
-            .setContentText("Don't forget to record your expenses for today!")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
+                val notification = NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle("Expense Reminder")
+                    .setContentText("Don't forget to log your expenses today!")
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .build()
 
-        notificationManager.notify(dailyReminderId, notification)
+                notificationManager.notify(dailyReminderId, notification)
+            }
+        }
     }
 
     fun cancelDailyReminder() {
@@ -94,14 +106,17 @@ class NotificationManager(private val context: Context) {
     }
 
     fun updateNotificationSettings() {
-        if (areNotificationsEnabled()) {
-            if (areExpenseRemindersEnabled()) {
-                startDailyReminder()
+        coroutineScope.launch {
+            val notificationsEnabled = settingsDao.getSetting("notifications_enabled")?.value?.toBoolean() ?: true
+            if (notificationsEnabled) {
+                if (settingsDao.getSetting("expense_reminders_enabled")?.value?.toBoolean() ?: true) {
+                    startDailyReminder()
+                } else {
+                    stopDailyReminder()
+                }
             } else {
                 stopDailyReminder()
             }
-        } else {
-            stopDailyReminder()
         }
     }
 
@@ -114,15 +129,9 @@ class NotificationManager(private val context: Context) {
         cancelDailyReminder()
     }
 
-    private fun areNotificationsEnabled(): Boolean {
-        return preferences.getBoolean("notifications_enabled", true)
-    }
-
-    private fun areBudgetAlertsEnabled(): Boolean {
-        return preferences.getBoolean("budget_alerts_enabled", true)
-    }
-
-    private fun areExpenseRemindersEnabled(): Boolean {
-        return preferences.getBoolean("expense_reminders_enabled", true)
+    companion object {
+        private const val CHANNEL_ID = "spendwise_channel"
+        private const val BUDGET_ALERT_ID = 1
+        private const val EXPENSE_REMINDER_ID = 2
     }
 } 

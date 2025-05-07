@@ -1,78 +1,100 @@
 package com.example.spendwise.utils
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.os.Parcelable
+import com.example.spendwise.data.AppDatabase
 import com.example.spendwise.models.Transaction
 import com.example.spendwise.models.TransactionType
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import java.util.Date
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flow
+import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
+import java.util.*
 
+@Parcelize
 class TransactionManager(
-    private val context: Context
-) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val gson = Gson()
+    private val context: @RawValue Context,
+    private val preferencesManager: @RawValue PreferencesManager
+) : Parcelable {
+    private val database = AppDatabase.getDatabase(context)
+    private val transactionDao = database.transactionDao()
+    private val scope = CoroutineScope(Dispatchers.IO)
     private var budgetManager: BudgetManager? = null
+    private val transactions = mutableListOf<Transaction>()
 
     fun setBudgetManager(budgetManager: BudgetManager) {
         this.budgetManager = budgetManager
     }
 
     fun saveTransaction(transaction: Transaction) {
-        val transactions = getTransactions().toMutableList()
-        transactions.add(0, transaction)
-        saveTransactions(transactions)
-        
-        // Check budget alerts if this is an expense
-        if (transaction.type == TransactionType.EXPENSE) {
-            budgetManager?.checkBudgetAlerts(transaction.category)
+        scope.launch {
+            transactionDao.insertTransaction(transaction)
+            
+            // Check budget alerts if this is an expense
+            if (transaction.type == TransactionType.EXPENSE) {
+                budgetManager?.checkBudgetAlerts()
+            }
         }
     }
 
-    fun getTransactions(): List<Transaction> {
-        val json = prefs.getString(KEY_TRANSACTIONS, "[]")
-        val type = object : TypeToken<List<Transaction>>() {}.type
-        return gson.fromJson(json, type) ?: emptyList()
+    fun getTransactions(): Flow<List<Transaction>> {
+        return transactionDao.getAllTransactions()
     }
 
     fun deleteTransaction(transaction: Transaction) {
-        val transactions = getTransactions().toMutableList()
-        transactions.removeIf { it.id == transaction.id }
-        saveTransactions(transactions)
-        
-        // Check budget alerts if this was an expense
-        if (transaction.type == TransactionType.EXPENSE) {
-            budgetManager?.checkBudgetAlerts(transaction.category)
+        scope.launch {
+            transactionDao.deleteTransaction(transaction)
+            transactions.removeIf { it.id == transaction.id }
+            
+            // Check budget alerts if this was an expense
+            if (transaction.type == TransactionType.EXPENSE) {
+                budgetManager?.checkBudgetAlerts()
+            }
         }
     }
 
-    fun updateTransaction(updatedTransaction: Transaction) {
-        val transactions = getTransactions().toMutableList()
-        val index = transactions.indexOfFirst { it.id == updatedTransaction.id }
-        if (index != -1) {
-            transactions[index] = updatedTransaction
-            saveTransactions(transactions)
+    fun updateTransaction(transaction: Transaction) {
+        scope.launch {
+            transactionDao.updateTransaction(transaction)
+            val index = transactions.indexOfFirst { it.id == transaction.id }
+            if (index != -1) {
+                transactions[index] = transaction
+            }
             
             // Check budget alerts if this is an expense
-            if (updatedTransaction.type == TransactionType.EXPENSE) {
-                budgetManager?.checkBudgetAlerts(updatedTransaction.category)
+            if (transaction.type == TransactionType.EXPENSE) {
+                budgetManager?.checkBudgetAlerts()
             }
         }
     }
 
     fun clearTransactions() {
-        saveTransactions(emptyList())
+        scope.launch {
+            transactionDao.deleteAllTransactions()
+            transactions.clear()
+        }
     }
 
-    //saving transactions to shared preferences
-    private fun saveTransactions(transactions: List<Transaction>) {
-        val json = gson.toJson(transactions)
-        prefs.edit().putString(KEY_TRANSACTIONS, json).apply()
+    fun addTransaction(transaction: Transaction) {
+        transactions.add(transaction)
     }
 
-    companion object {
-        private const val PREFS_NAME = "SpendWisePrefs"
-        private const val KEY_TRANSACTIONS = "transactions"
+    fun getAllTransactions(): Flow<List<Transaction>> = flow {
+        emit(transactions.toList())
+    }
+
+    fun getTransactionsByType(type: TransactionType): Flow<List<Transaction>> = flow {
+        emit(transactions.filter { it.type == type })
+    }
+
+    fun getTransactionsByCategory(category: String): Flow<List<Transaction>> = flow {
+        emit(transactions.filter { it.category == category })
+    }
+
+    fun getTransactionsByDateRange(startDate: Long, endDate: Long): Flow<List<Transaction>> = flow {
+        emit(transactions.filter { it.date.time in startDate..endDate })
     }
 } 

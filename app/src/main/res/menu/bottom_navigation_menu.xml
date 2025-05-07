@@ -1,23 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:id="@+id/navigation_dashboard"
+        android:id="@+id/nav_dashboard"
         android:icon="@drawable/ic_dashboard"
-        android:title="@string/dashboard" />
-
+        android:title="@string/navigation_dashboard" />
     <item
-        android:id="@+id/navigation_transactions"
+        android:id="@+id/nav_transactions"
         android:icon="@drawable/ic_transactions"
-        android:title="@string/transactions" />
-
+        android:title="@string/navigation_transactions" />
     <item
-        android:id="@+id/navigation_budget"
+        android:id="@+id/nav_budget"
         android:icon="@drawable/ic_budget"
-        android:title="@string/budget" />
-
+        android:title="@string/navigation_budget" />
     <item
-        android:id="@+id/navigation_settings"
+        android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"
-        android:title="@string/settings" />
+        android:title="@string/navigation_settings" />
 </menu>

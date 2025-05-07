@@ -1,169 +1,136 @@
 package com.example.spendwise.utils
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.os.Parcelable
 import android.widget.Toast
+import com.example.spendwise.data.AppDatabase
 import com.example.spendwise.models.Budget
 import com.example.spendwise.models.TransactionType
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 import java.util.Calendar
-import java.util.Date
 
+@Parcelize
 class BudgetManager(
-    private val context: Context,
-    private val transactionManager: TransactionManager
-) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val gson = Gson()
+    private val context: @RawValue Context,
+    private val transactionManager: @RawValue TransactionManager
+) : Parcelable {
+    private val database = AppDatabase.getDatabase(context)
+    private val budgetDao = database.budgetDao()
+    private val transactionDao = database.transactionDao()
     private val notificationManager = NotificationManager(context)
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val budgets = mutableListOf<Budget>()
 
     init {
         checkAndResetBudgets()
     }
 
     private fun checkAndResetBudgets() {
-        val lastResetMonth = prefs.getInt(KEY_LAST_RESET_MONTH, -1)
         val currentMonth = Calendar.getInstance().get(Calendar.MONTH)
-        
-        if (lastResetMonth != currentMonth) {
-            // It's a new month, clear all budgets
-            saveBudgets(emptyList())
-            prefs.edit().putInt(KEY_LAST_RESET_MONTH, currentMonth).apply()
-            Toast.makeText(context, "Budgets have been reset for the new month", Toast.LENGTH_LONG).show()
+        coroutineScope.launch {
+            val budgets = budgetDao.getAllBudgets().first()
+            if (budgets.any { it.month != currentMonth }) {
+                // It's a new month, clear all budgets
+                budgetDao.deleteAllBudgets()
+                Toast.makeText(context, "Budgets have been reset for the new month", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
-    fun saveBudget(budget: Budget): Boolean {
-        val budgets = getBudgets().toMutableList()
-        
-        // Check if a budget already exists for this category
-        if (budgets.any { it.category == budget.category }) {
-            Toast.makeText(
-                context,
-                "A budget already exists for ${budget.category}. Please edit the existing budget instead.",
-                Toast.LENGTH_LONG
-            ).show()
-            return false
-        }
-        
+    fun addBudget(budget: Budget) {
         budgets.add(budget)
-        saveBudgets(budgets)
-        checkBudgetAlerts(budget.category)
-        return true
     }
 
-    fun updateBudget(updatedBudget: Budget) {
-        val budgets = getBudgets().toMutableList()
-        val index = budgets.indexOfFirst { it.category == updatedBudget.category }
+    fun updateBudget(budget: Budget) {
+        val index = budgets.indexOfFirst { it.id == budget.id }
         if (index != -1) {
-            budgets[index] = updatedBudget
-            saveBudgets(budgets)
-            checkBudgetAlerts(updatedBudget.category)
-        }
-    }
-
-    fun getBudgets(): List<Budget> {
-        checkAndResetBudgets() // Check if we need to reset budgets
-        val json = prefs.getString(KEY_BUDGETS, "[]")
-        val type = object : TypeToken<List<Budget>>() {}.type
-        val budgets = gson.fromJson<List<Budget>>(json, type) ?: emptyList()
-        
-        // Update current spending for each budget
-        return budgets.map { budget ->
-            val currentSpending = calculateCurrentSpending(budget.category)
-            budget.copy(currentSpending = currentSpending)
+            budgets[index] = budget
         }
     }
 
     fun deleteBudget(budget: Budget) {
-        val budgets = getBudgets().toMutableList()
-        budgets.remove(budget)
-        saveBudgets(budgets)
+        budgets.removeIf { it.id == budget.id }
     }
 
-    fun getBudget(category: String): Budget? {
-        return getBudgets().find { it.category == category }
+    fun getAllBudgets(): Flow<List<Budget>> = flow {
+        emit(budgets.toList())
     }
 
-    private fun calculateCurrentSpending(category: String): Double {
-        val transactions = transactionManager.getTransactions()
-        val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH)
-        val currentYear = calendar.get(Calendar.YEAR)
-
-        return transactions
-            .filter { transaction ->
-                transaction.type == TransactionType.EXPENSE &&
-                transaction.category == category &&
-                isInCurrentMonth(transaction.date, currentMonth, currentYear)
-            }
-            .sumOf { it.amount }
+    fun getBudgetByCategory(category: String): Flow<Budget?> = flow {
+        emit(budgets.find { it.category == category })
     }
 
-    private fun isInCurrentMonth(date: Date, currentMonth: Int, currentYear: Int): Boolean {
-        val calendar = Calendar.getInstance()
-        calendar.time = date
-        return calendar.get(Calendar.MONTH) == currentMonth && 
-               calendar.get(Calendar.YEAR) == currentYear
+    fun getTotalBudget(): Flow<Double> = flow {
+        emit(budgets.sumOf { it.amount })
     }
 
-    fun clearBudgets() {
-        saveBudgets(emptyList())
-    }
-
-    private fun saveBudgets(budgets: List<Budget>) {
-        val json = gson.toJson(budgets)
-        prefs.edit().putString(KEY_BUDGETS, json).apply()
-    }
-
-    fun checkBudgetAlerts(category: String? = null) {
-        val budgets = if (category != null) {
-            getBudgets().filter { it.category == category }
-        } else {
-            getBudgets()
-        }
-
-        budgets.forEach { budget ->
-            val transactions = transactionManager.getTransactions()
-                .filter { it.category == budget.category && it.type == TransactionType.EXPENSE }
-                .filter { isInCurrentMonth(it.date, Calendar.getInstance().get(Calendar.MONTH), Calendar.getInstance().get(Calendar.YEAR)) }
-
-            val totalSpent = transactions.sumOf { it.amount }
-            val percentage = (totalSpent / budget.limit) * 100
-
-            // Show alert if spending is above 80% of budget
-            if (percentage >= 80) {
-                notificationManager.showBudgetAlert(budget.category, totalSpent, budget.limit, percentage)
-            }
+    fun saveBudget(budget: Budget) {
+        coroutineScope.launch {
+            budgetDao.insertBudget(budget)
         }
     }
 
-    fun isInCurrentMonth(budget: Budget): Boolean {
-        val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH)
-        val currentYear = calendar.get(Calendar.YEAR)
-        return budget.month == currentMonth && budget.year == currentYear
+    fun getBudgetsByCategory(category: String) = budgetDao.getBudgetsByCategory(category)
+
+    fun getBudgetsByPeriod(period: String) = budgetDao.getBudgetsByPeriod(period)
+
+    fun calculateBudgetProgress(budget: Budget): Double {
+        var totalSpent = 0.0
+        coroutineScope.launch {
+            val transactions = transactionDao.getTransactionsByCategory(budget.category).first()
+            totalSpent = transactions.sumOf { it.amount }
+        }
+        return (totalSpent / budget.amount) * 100
     }
 
-    fun getCurrentBudget(): Budget? {
-        val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH)
-        val currentYear = calendar.get(Calendar.YEAR)
-        return getBudgets().find { it.month == currentMonth && it.year == currentYear }
+    fun getRemainingAmount(budget: Budget): Double {
+        var totalSpent = 0.0
+        coroutineScope.launch {
+            val transactions = transactionDao.getTransactionsByCategory(budget.category).first()
+            totalSpent = transactions.sumOf { it.amount }
+        }
+        return budget.amount - totalSpent
     }
 
-    fun getBudgetProgress(): Float {
+    fun checkBudgetAlerts() {
+        coroutineScope.launch {
+            val budgets = budgetDao.getAllBudgets().first()
+
+            budgets.forEach { budget ->
+                val progress = calculateBudgetProgress(budget)
+                val remaining = getRemainingAmount(budget)
+
+                when {
+                    progress >= 100 -> {
+                        notificationManager.showBudgetAlert(budget.category, budget.category, remaining)
+                    }
+                    progress >= 90 -> {
+                        notificationManager.showBudgetAlert(budget.category, budget.category, remaining)
+                    }
+                    progress >= 75 -> {
+                        notificationManager.showBudgetAlert(budget.category, budget.category, remaining)
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun getCurrentBudget(): Budget? {
+        val currentMonth = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
+        return budgetDao.getBudgetsByPeriod(currentMonth).first().firstOrNull()
+    }
+
+    suspend fun getBudgetProgress(): Float {
         val currentBudget = getCurrentBudget() ?: return 0f
-        val totalSpent = transactionManager.getTransactions()
-            .filter { it.type == TransactionType.EXPENSE }
+        val totalSpent = transactionDao.getTransactionsByCategory(currentBudget.category).first()
             .sumOf { it.amount }
-        return (totalSpent.toFloat() / currentBudget.limit.toFloat()).coerceIn(0f, 1f)
-    }
-
-    companion object {
-        private const val PREFS_NAME = "SpendWisePrefs"
-        private const val KEY_BUDGETS = "budgets"
-        private const val KEY_LAST_RESET_MONTH = "last_reset_month"
+        return (totalSpent.toFloat() / currentBudget.amount.toFloat()).coerceIn(0f, 1f)
     }
 } 

@@ -1,27 +1,40 @@
 package com.example.spendwise.models
 
-import com.google.gson.annotations.SerializedName
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
+@Entity(tableName = "budgets")
 data class Budget(
-    @SerializedName("category")
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+
+    @ColumnInfo(name = "category")
     val category: String,
-    @SerializedName("limit")
-    val limit: Double,
-    @SerializedName("month")
+
+    @ColumnInfo(name = "amount")
+    val amount: Double,
+
+    @ColumnInfo(name = "period")
+    val period: String,
+
+    @ColumnInfo(name = "month")
     val month: Int,
-    @SerializedName("year")
+
+    @ColumnInfo(name = "year")
     val year: Int,
-    @SerializedName("currentSpending")
+
+    @ColumnInfo(name = "current_spending")
     val currentSpending: Double = 0.0
 ) {
     val remaining: Double
-        get() = limit - currentSpending
+        get() = amount - currentSpending
 
     val percentage: Int
-        get() = ((currentSpending / limit) * 100).toInt()
+        get() = ((currentSpending / amount) * 100).toInt()
 
     val isOverBudget: Boolean
-        get() = currentSpending > limit
+        get() = currentSpending > amount
 
     val isNearLimit: Boolean
         get() = percentage >= 80 && !isOverBudget

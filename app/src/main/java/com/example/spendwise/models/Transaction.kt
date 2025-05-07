@@ -1,20 +1,29 @@
 package com.example.spendwise.models
 
-import com.google.gson.annotations.SerializedName
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import java.util.Date
 import java.util.UUID
 
+@Entity(tableName = "transactions")
 data class Transaction(
-    @SerializedName("id")
+    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = UUID.randomUUID().toString(),
-    @SerializedName("title")
+    
+    @ColumnInfo(name = "title")
     val title: String,
-    @SerializedName("amount")
+    
+    @ColumnInfo(name = "amount")
     val amount: Double,
-    @SerializedName("category")
+    
+    @ColumnInfo(name = "category")
     val category: String,
-    @SerializedName("type")
+    
+    @ColumnInfo(name = "type")
     val type: TransactionType,
-    @SerializedName("date")
+    
+    @ColumnInfo(name = "date")
     val date: Date
 ) 
